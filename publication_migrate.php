@@ -24,11 +24,13 @@ while ($article = $result->fetch_assoc()) {
     echo "Inserting submission for article ID: " . $article['id'] . "\n";
 
     $stmt = $newDb->prepare("
-        INSERT INTO submissions (context_id, date_submitted, last_modified, stage_id, locale, status, submission_progress, work_type)
+        INSERT INTO submissions (id, context_id, date_submitted, last_modified, stage_id, locale, status, submission_progress, work_type)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ");
+
     $stmt->bind_param(
-        "issisiii",
+        "iissisiii",
+        $id,
         $context_id,
         $date_submitted,
         $last_modified,
@@ -38,7 +40,7 @@ while ($article = $result->fetch_assoc()) {
         $submission_progress,
         $work_type
     );
-
+    $id = $article['id'];
     $context_id = 1; // Adjust journal ID
     $date_submitted = $article['date'];
     $last_modified = $article['lastupdate'];
@@ -50,6 +52,39 @@ while ($article = $result->fetch_assoc()) {
 
     $stmt->execute();
     $submissionId = $stmt->insert_id;
+    //create a folder based on that submission id and copy the file from the old folder
+
+
+    // Set the variables
+    $folder = $id; // Folder name variable
+    $pdfName = $article['pdf']; // PDF name
+    $oldDirectory = "./upload/pdf"; // Relative path to the old directory
+    $newDirectory = "../../new_ojs_files/journals/1/articles/{$folder}"; // Relative path to the new directory
+
+    // Create the target directory if it doesn't exist
+    if (!is_dir($newDirectory)) {
+        if (!mkdir($newDirectory, 0777, true)) {
+            die("Failed to create target directory: {$newDirectory}\n");
+        }
+        echo "Created directory: {$newDirectory}\n";
+    }
+
+    // Full paths to source and destination files
+    $sourceFile = "{$oldDirectory}/{$pdfName}";
+    $destinationFile = "{$newDirectory}/{$pdfName}";
+
+    // Copy the file
+    if (!file_exists($sourceFile)) {
+        die("Source file does not exist: {$sourceFile}\n");
+    }
+
+    if (copy($sourceFile, $destinationFile)) {
+        echo "File successfully copied to: {$destinationFile}\n";
+    } else {
+        die("Failed to copy file.\n");
+    }
+
+
     $stmt->close();
 
     echo "Submission inserted with submission_id: $submissionId\n";
@@ -137,11 +172,11 @@ while ($article = $result->fetch_assoc()) {
     // 2. Insert authors (now after publication insertion)
     echo "Inserting authors for article ID: " . $article['id'] . "\n";
 
-    $authorQuery = "SELECT ea.*, 
-                       CONCAT(aa.firstname, ' ', aa.middlename, ' ', aa.lastname) AS author_name, 
-                       aa.affilate AS author_affiliation, 
-                       aa.country AS author_country, 
-                       aa.email AS author_email 
+    $authorQuery = "SELECT ea.*,
+                       CONCAT(aa.firstname, ' ', aa.middlename, ' ', aa.lastname) AS author_name,
+                       aa.affilate AS author_affiliation,
+                       aa.country AS author_country,
+                       aa.email AS author_email
                 FROM esite_article_author ea
                 JOIN esite_author aa ON ea.authorid = aa.id
                 WHERE ea.articleid = ?";
