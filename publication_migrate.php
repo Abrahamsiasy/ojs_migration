@@ -1,7 +1,7 @@
 <?php
 // Database connections
 $oldDb = new mysqli("localhost", "root", "", "iraqijms_esite");
-$newDb = new mysqli("localhost", "root", "", "ojs");
+$newDb = new mysqli("localhost", "root", "", "ojs_fresh_migrate_isak");
 
 // Check for connection errors
 if ($oldDb->connect_error) {
@@ -13,7 +13,7 @@ if ($newDb->connect_error) {
 
 try {
     // Query articles from the old database
-    $query = "SELECT * FROM esite_article";
+    $query = "SELECT * FROM esite_article WHERE status = 3 AND pdf != ''";
     $result = $oldDb->query($query);
     if (!$result) {
         die("Query failed: " . $oldDb->error);
@@ -310,120 +310,123 @@ try {
         // 4. Insert publication galleys (default as PDF)
         echo "Inserting publication galleys for publication_id: $publicationId\n";
         $stmt = $newDb->prepare("
-            INSERT INTO publication_galleys (publication_id, label, locale)
-            VALUES (?, ?, ?)
+            INSERT INTO publication_galleys (publication_id, label, locale, submission_file_id)
+            VALUES (?, ?, ?, ?)
         ");
 
         $stmt->bind_param(
-            "iss",
+            "issi",
             $publication_id,
             $label,
-            $locale
+            $locale,
+            $submission_file_id
         );
 
         $label = 'PDF';
+        $submission_file_id = $submissionFileId;
+
         $stmt->execute();
         $stmt->close();
 
 
         // TODO: CODE COMMENTED FOR LATER
-        // // 2. Insert authors (now after publication insertion)
-        // echo "Inserting authors for article ID: " . $article['id'] . "\n";
+        // 2. Insert authors (now after publication insertion)
+        echo "Inserting authors for article ID: " . $article['id'] . "\n";
 
-        // $articleIDD = $article['id'];
-        // $authorQuery = "SELECT ea.*,
-        //                CONCAT(aa.firstname, ' ', aa.middlename, ' ', aa.lastname) AS author_name,
-        //                aa.affilate AS author_affiliation,
-        //                aa.country AS author_country,
-        //                aa.email AS author_email
-        //         FROM esite_article_author ea
-        //         JOIN esite_author aa ON ea.authorid = aa.id
-        //         WHERE ea.articleid = ?";
+        $articleIDD = $article['id'];
+        $authorQuery = "SELECT ea.*,
+                       CONCAT(aa.firstname, ' ', aa.middlename, ' ', aa.lastname) AS author_name,
+                       aa.affilate AS author_affiliation,
+                       aa.country AS author_country,
+                       aa.email AS author_email
+                FROM esite_article_author ea
+                JOIN esite_author aa ON ea.authorid = aa.id
+                WHERE ea.articleid = ?";
 
-        // // echo ($authorQuery);
+        // echo ($authorQuery);
 
-        // $authorStmt = $oldDb->prepare($authorQuery);
-        // $authorStmt->bind_param("i", $article['id']);
-        // $authorStmt->execute();
-        // $authorResult = $authorStmt->get_result();
+        $authorStmt = $oldDb->prepare($authorQuery);
+        $authorStmt->bind_param("i", $article['id']);
+        $authorStmt->execute();
+        $authorResult = $authorStmt->get_result();
 
-        // echo "ARTICLEID: " . $article['id'] . "\n";
+        echo "ARTICLEID: " . $article['id'] . "\n";
 
-        // while ($author = $authorResult->fetch_assoc()) {
-        //     // Insert into authors table
-        //     echo "Inserting author: " . $author['author_name'] . "\n";
+        while ($author = $authorResult->fetch_assoc()) {
+            // Insert into authors table
+            echo "Inserting author: " . $author['author_name'] . "\n";
 
-        //     $stmt = $newDb->prepare("
-        //         INSERT INTO authors (email, include_in_browse, publication_id, seq, user_group_id)
-        //         VALUES (?, ?, ?, ?, ?)
-        //     ");
+            $stmt = $newDb->prepare("
+                INSERT INTO authors (email, include_in_browse, publication_id, seq, user_group_id)
+                VALUES (?, ?, ?, ?, ?)
+            ");
 
-        //     $stmt->bind_param(
-        //         "siisi",
-        //         $email,
-        //         $include_in_browse,
-        //         $publication_id,
-        //         $seq,
-        //         $user_group_id
-        //     );
+            $stmt->bind_param(
+                "siisi",
+                $email,
+                $include_in_browse,
+                $publication_id,
+                $seq,
+                $user_group_id
+            );
 
-        //     $email = $author['author_email'];
-        //     $include_in_browse = 1;
-        //     $publication_id = $publicationId;
-        //     $seq = $author['vorder'];
-        //     $user_group_id = 14; // Default group ID for authors
+            $email = $author['author_email'];
+            $include_in_browse = 1;
+            $publication_id = $publicationId;
+            $seq = $author['vorder'];
+            $user_group_id = 14; // Default group ID for authors
 
-        //     $stmt->execute();
-        //     $authorId = $stmt->insert_id;
-        //     $stmt->close();
+            $stmt->execute();
+            $authorId = $stmt->insert_id;
+            $stmt->close();
 
-        //     // Update the primary_contact_id in the publications table
-        //     if ($authorId && $publication_id) {
-        //         $updateStmt = $newDb->prepare("UPDATE publications SET primary_contact_id = ? WHERE publication_id = ?");
-        //         $updateStmt->bind_param("ii", $authorId, $publication_id);
+            // Update the primary_contact_id in the publications table
+            if ($authorId && $publication_id) {
+                $updateStmt = $newDb->prepare("UPDATE publications SET primary_contact_id = ? WHERE publication_id = ?");
+                $updateStmt->bind_param("ii", $authorId, $publication_id);
 
-        //         if ($updateStmt->execute()) {
-        //             echo "Successfully updated publication with ID $publication_id to have primary_contact_id $authorId.\n";
-        //         } else {
-        //             echo "Failed to update primary_contact_id: " . $updateStmt->error . "\n";
-        //         }
+                if ($updateStmt->execute()) {
+                    echo "Successfully updated publication with ID $publication_id to have primary_contact_id $authorId.\n";
+                } else {
+                    echo "Failed to update primary_contact_id: " . $updateStmt->error . "\n";
+                }
 
-        //         $updateStmt->close();
-        //     } else {
-        //         echo "Error: Missing authorId or publicationId, cannot update publications table.\n";
-        //     }
+                $updateStmt->close();
+            } else {
+                echo "Error: Missing authorId or publicationId, cannot update publications table.\n";
+            }
 
-        //     // Insert author settings (e.g., name, affiliation, country)
-        //     echo "Inserting author settings for author_id: $authorId\n";
-        //     $authorSettings = [
-        //         ['givenName', $author['author_name']],
-        //         ['affiliation', $author['author_affiliation']],
-        //         ['country', $author['author_country']],
-        //     ];
+            // Insert author settings (e.g., name, affiliation, country)
+            echo "Inserting author settings for author_id: $authorId\n";
+            $authorSettings = [
+                ['givenName', $author['author_name']],
+                ['affiliation', $author['author_affiliation']],
+                ['country', $author['author_country']],
+            ];
 
-        //     foreach ($authorSettings as $setting) {
-        //         $stmt = $newDb->prepare("
-        //             INSERT INTO author_settings (author_id, locale, setting_name, setting_value)
-        //             VALUES (?, ?, ?, ?)
-        //         ");
+            foreach ($authorSettings as $setting) {
+                $stmt = $newDb->prepare("
+                    INSERT INTO author_settings (author_id, locale, setting_name, setting_value)
+                    VALUES (?, ?, ?, ?)
+                ");
 
-        //         $stmt->bind_param(
-        //             "isss",
-        //             $author_id,
-        //             $locale,
-        //             $setting_name,
-        //             $setting_value
-        //         );
+                $stmt->bind_param(
+                    "isss",
+                    $author_id,
+                    $locale,
+                    $setting_name,
+                    $setting_value
+                );
 
-        //         $author_id = $authorId;
-        //         $locale = 'en';
-        //         $setting_name = $setting[0];
-        //         $setting_value = $setting[1];
+                $author_id = $authorId;
+                $locale = 'en';
+                $setting_name = $setting[0];
+                $setting_value = $setting[1];
 
-        //         $stmt->execute();
-        //         $stmt->close();
-        //     }
-        // }
+                $stmt->execute();
+                $stmt->close();
+            }
+        }
 
         // // ISSUE RELATED CODE HERE
         try {
@@ -527,6 +530,36 @@ try {
                         echo "ISSUEUPDATED successfully: Issue ID {$issue['id']}<br>";
                     } else {
                         echo "Error updating issue: " . $stmt->error . "<br>";
+                    }
+
+
+                    // TODO: update issue related tables here, publication_settings
+                    echo "Inserting publication settings for publication_id: $publicationId\n";
+                    $publicationSettings = [
+                        ['issueId', $existingIssueId],
+                    ];
+
+                    foreach ($publicationSettings as $setting) {
+                        $stmt = $newDb->prepare("
+                            INSERT INTO publication_settings (publication_id, locale, setting_name, setting_value)
+                            VALUES (?, ?, ?, ?)
+                        ");
+
+                        $stmt->bind_param(
+                            "isss",
+                            $publication_id,
+                            $locale,
+                            $setting_name,
+                            $setting_value
+                        );
+
+                        $publication_id = $publicationId;
+                        $locale = 'en';
+                        $setting_name = $setting[0];
+                        $setting_value = $setting[1];
+
+                        $stmt->execute();
+                        $stmt->close();
                     }
 
                 } else {
