@@ -1,7 +1,7 @@
 <?php
 // Database connections
 $oldDb = new mysqli("localhost", "root", "", "iraqijms_esite");
-$newDb = new mysqli("localhost", "root", "", "ojs_fresh_migrate_isak");
+$newDb = new mysqli("localhost", "root", "", "ojs_fresh_isak");
 
 // Check for connection errors
 if ($oldDb->connect_error) {
@@ -13,7 +13,7 @@ if ($newDb->connect_error) {
 
 try {
     // Query articles from the old database
-    $query = "SELECT * FROM esite_article WHERE status = 3 AND pdf != ''";
+    $query = "SELECT * FROM esite_article WHERE 1";
     $result = $oldDb->query($query);
     if (!$result) {
         die("Query failed: " . $oldDb->error);
@@ -48,7 +48,7 @@ try {
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
 
-            
+
             $stmt->bind_param(
                 "iissisiii",
                 $id,
@@ -65,12 +65,29 @@ try {
             $context_id = 1; // Adjust journal ID
             $date_submitted = $article['date'];
             $last_modified = $article['lastupdate'];
-            $stage_id = 5;
             $locale = 'en';
-            $status = 3; // Status 5 = Completed
+            if ($article['status'] == 3) {
+                $stage_id = 5;
+                $status = 3; // Published
+            } elseif ($article['status'] == 1) {
+                $stage_id = 3;
+                $status = 1; // Reviewing article
+            } elseif ($article['status'] == 2) {
+                $stage_id = 4;
+                $status = 2; // Editing article
+            } elseif ($article['status'] == 4) {
+                $stage_id = 4;
+                $status = 4; // Pending corrections
+            } else {
+                $status = 1; // Default: New article
+                $stage_id = 1;
+                $submission_progress = 'start';
+            }
+            
+            // $status = 3; // Status 3 = Completed
             $submission_progress = 0;
             $work_type = 1; // Default type for submissions
-            
+
             $stmt->execute();
             $submissionId = $stmt->insert_id;
             //create a folder based on that submission id and copy the file from the old folder
@@ -252,7 +269,12 @@ try {
         $section_id = 1; // Default section ID
         $seq = $article['vorder'];
         $submission_id = $submissionId ?? null;
-        $status = 1; // Active
+        if ($publication['status'] == 3) {
+            $status = 3; // Published
+        } else {
+            $status = 1; // Default: New publication
+        }
+        
         $version = 1; // Default version
 
         $stmt->execute();
@@ -354,6 +376,8 @@ try {
 
         while ($author = $authorResult->fetch_assoc()) {
             // Insert into authors table
+
+            echo "_________________________________________________________________________" . $author["id"] . "\n\n\n";
             echo "Inserting author: " . $author['author_name'] . "\n";
 
             $stmt = $newDb->prepare("
@@ -539,29 +563,30 @@ try {
                         ['issueId', $existingIssueId],
                     ];
 
-                    foreach ($publicationSettings as $setting) {
-                        $stmt = $newDb->prepare("
-                            INSERT INTO publication_settings (publication_id, locale, setting_name, setting_value)
-                            VALUES (?, ?, ?, ?)
-                        ");
+                    if ($article['status'] == 3) {
+                        foreach ($publicationSettings as $setting) {
+                            $stmt = $newDb->prepare("
+                                INSERT INTO publication_settings (publication_id, locale, setting_name, setting_value)
+                                VALUES (?, ?, ?, ?)
+                            ");
 
-                        $stmt->bind_param(
-                            "isss",
-                            $publication_id,
-                            $locale,
-                            $setting_name,
-                            $setting_value
-                        );
+                            $stmt->bind_param(
+                                "isss",
+                                $publication_id,
+                                $locale,
+                                $setting_name,
+                                $setting_value
+                            );
 
-                        $publication_id = $publicationId;
-                        $locale = 'en';
-                        $setting_name = $setting[0];
-                        $setting_value = $setting[1];
+                            $publication_id = $publicationId;
+                            $locale = 'en';
+                            $setting_name = $setting[0];
+                            $setting_value = $setting[1];
 
-                        $stmt->execute();
-                        $stmt->close();
+                            $stmt->execute();
+                            $stmt->close();
+                        }
                     }
-
                 } else {
 
                     $volumeNumber = $issue['no'];
@@ -656,27 +681,29 @@ try {
                         ['issueId', $issue['id']],
                     ];
 
-                    foreach ($publicationSettings as $setting) {
-                        $stmt = $newDb->prepare("
-                            INSERT INTO publication_settings (publication_id, locale, setting_name, setting_value)
-                            VALUES (?, ?, ?, ?)
-                        ");
+                    if ($article['status'] == 3) {
+                        foreach ($publicationSettings as $setting) {
+                            $stmt = $newDb->prepare("
+                                INSERT INTO publication_settings (publication_id, locale, setting_name, setting_value)
+                                VALUES (?, ?, ?, ?)
+                            ");
 
-                        $stmt->bind_param(
-                            "isss",
-                            $publication_id,
-                            $locale,
-                            $setting_name,
-                            $setting_value
-                        );
+                            $stmt->bind_param(
+                                "isss",
+                                $publication_id,
+                                $locale,
+                                $setting_name,
+                                $setting_value
+                            );
 
-                        $publication_id = $publicationId;
-                        $locale = 'en';
-                        $setting_name = $setting[0];
-                        $setting_value = $setting[1];
+                            $publication_id = $publicationId;
+                            $locale = 'en';
+                            $setting_name = $setting[0];
+                            $setting_value = $setting[1];
 
-                        $stmt->execute();
-                        $stmt->close();
+                            $stmt->execute();
+                            $stmt->close();
+                        }
                     }
                 }
             }
@@ -705,7 +732,8 @@ try {
 $oldDb->close();
 $newDb->close();
 
-function getFirstDayOfMonth($issueNumber) {
+function getFirstDayOfMonth($issueNumber)
+{
     // Map issue numbers to specific months
     $monthMap = [
         1 => '06', // First issue: June
