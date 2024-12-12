@@ -66,23 +66,70 @@ try {
             $date_submitted = $article['date'];
             $last_modified = $article['lastupdate'];
             $locale = 'en';
-            if ($article['status'] == 3) {
+            $oldstatus = $article['status'];
+            // if ($article['status'] == 3) {
+            //     $stage_id = 5;
+            //     $status = 3; // Published
+            // } elseif ($article['status'] == 1) {
+            //     $stage_id = 3;
+            //     $status = 1; // Reviewing article
+            // } elseif ($article['status'] == 2) {
+            //     $stage_id = 4;
+            //     $status = 2; // Editing article
+            // } elseif ($article['status'] == 4) {
+            //     $stage_id = 4;
+            //     $status = 4; // Pending corrections
+            // } else {
+            //     $status = 1; // Default: New article
+            //     $stage_id = 1;
+            //     $submission_progress = 'start';
+            // }
+
+            if ($oldStatus == 0) {
+                $stage_id = 1;
+                $status = 1; // Submitted
+            } elseif ($oldStatus == 1) {
+                $stage_id = 3;
+                $status = 1; // Under Review
+            } elseif ($oldStatus == 2) {
+                $stage_id = 4;
+                $status = 1; // Accepted
+            } elseif ($oldStatus == 4) {
+                $stage_id = 5;
+                $status = 1; // In Production
+            } elseif ($oldStatus == 3) {
                 $stage_id = 5;
                 $status = 3; // Published
-            } elseif ($article['status'] == 1) {
-                $stage_id = 3;
-                $status = 1; // Reviewing article
-            } elseif ($article['status'] == 2) {
-                $stage_id = 4;
-                $status = 2; // Editing article
-            } elseif ($article['status'] == 4) {
-                $stage_id = 4;
-                $status = 4; // Pending corrections
             } else {
-                $status = 1; // Default: New article
-                $stage_id = 1;
-                $submission_progress = 'start';
+                $stage_id = null; // Default or error handling
+                $status = null;
             }
+            
+
+            //Author First Submission:
+
+            // Status: 0
+            // Stage: 1
+            // Under Review:
+
+            // Status: 1
+            // Stage: 3
+            // Copy Editing:
+
+            // Status: 1
+            // Stage: 4
+            // Production:
+
+            // Status: 1
+            // Stage: 5
+            // Assigned to Issue for Publication:
+
+            // Status: 3
+            // Stage: 5
+            // Published:
+
+            // Status: 5
+            // Stage: 5
             
             // $status = 3; // Status 3 = Completed
             $submission_progress = 0;

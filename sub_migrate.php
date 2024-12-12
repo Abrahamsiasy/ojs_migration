@@ -129,3 +129,8 @@ echo "Migration completed successfully!";
 $oldDb->close();
 $newDb->close();
 ?>
+
+<!-- UPDATE `publication_settings`
+SET `locale` = ''
+WHERE `setting_name` = 'issueId';
+ -->
