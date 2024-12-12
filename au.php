@@ -1,7 +1,7 @@
 <?php
 // Database connection details
 $oldDb = new mysqli("localhost", "root", "", "iraqijms_esite");
-$newDb = new mysqli("localhost", "root", "", "ojs2");
+$newDb = new mysqli("localhost", "root", "", "ojs");
 
 if ($oldDb->connect_error || $newDb->connect_error) {
     die("Connection failed: " . ($oldDb->connect_error ?? $newDb->connect_error));
@@ -140,6 +140,18 @@ if ($result->num_rows > 0) {
         }
 
         // Insert into `user_user_groups` table
+        $roleReader = 17; // Reader role
+        echo "17 add\n";
+
+        $userGroupQueryReader = $newDb->prepare("
+            INSERT INTO user_user_groups 
+            (user_user_group_id, user_group_id, user_id) 
+            VALUES (NULL, ?, ?)
+        ");
+        
+        $userGroupQueryReader->bind_param("ii", $roleReader, $userId);
+        $userGroupQueryReader->execute();
+
         $role = 14; // Author role
         $userGroupQuery = $newDb->prepare("
             INSERT INTO user_user_groups 

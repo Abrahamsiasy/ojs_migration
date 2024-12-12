@@ -1,7 +1,7 @@
 <?php
 // Database connections
 $oldDb = new mysqli("localhost", "root", "", "iraqijms_esite");
-$newDb = new mysqli("localhost", "root", "", "ojs_fresh_isak");
+$newDb = new mysqli("localhost", "root", "", "ojs");
 
 // Check for connection errors
 if ($oldDb->connect_error) {
@@ -66,7 +66,6 @@ try {
             $date_submitted = $article['date'];
             $last_modified = $article['lastupdate'];
             $locale = 'en';
-            $oldstatus = $article['status'];
             // if ($article['status'] == 3) {
             //     $stage_id = 5;
             //     $status = 3; // Published
@@ -85,19 +84,19 @@ try {
             //     $submission_progress = 'start';
             // }
 
-            if ($oldStatus == 0) {
+            if ($article['status'] == 0) {
                 $stage_id = 1;
                 $status = 1; // Submitted
-            } elseif ($oldStatus == 1) {
+            } elseif ($article['status'] == 1) {
                 $stage_id = 3;
                 $status = 1; // Under Review
-            } elseif ($oldStatus == 2) {
+            } elseif ($article['status'] == 2) {
                 $stage_id = 4;
                 $status = 1; // Accepted
-            } elseif ($oldStatus == 4) {
+            } elseif ($article['status'] == 4 && $article['status'] == 5) {
                 $stage_id = 5;
                 $status = 1; // In Production
-            } elseif ($oldStatus == 3) {
+            } elseif ($article['status'] == 3) {
                 $stage_id = 5;
                 $status = 3; // Published
             } else {
@@ -265,6 +264,28 @@ try {
             echo "Submission File Revision inserted. $submissionFileRevisionId\n";
 
             // TODO: forgot to work on submission_settings also (sectionId)
+
+            // 3. inserting submission_file_settings for sectionId
+            $stmt = $newDb->prepare("
+                INSERT INTO submission_settings
+                (submission_id, setting_name, setting_value)
+                VALUES (?, ?, ?)
+            ");
+
+            $stmt->bind_param(
+                "iss",
+                $submission_id,
+                $setting_name,
+                $setting_value,
+            );
+            $submission_file_id = $submissionFileId;
+            $setting_name = 'sectionId';
+            $setting_value = 1;
+
+            $stmt->execute();
+
+            $stmt->close();
+
             // 3. inserting submission_file_settings for sectionId
             $stmt = $newDb->prepare("
                 INSERT INTO submission_file_settings
@@ -316,7 +337,7 @@ try {
         $section_id = 1; // Default section ID
         $seq = $article['vorder'];
         $submission_id = $submissionId ?? null;
-        if ($publication['status'] == 3) {
+        if ($article['status'] == 3) {
             $status = 3; // Published
         } else {
             $status = 1; // Default: New publication
@@ -351,6 +372,7 @@ try {
         $publicationSettings = [
             ['title', $article['title']],
             ['abstract', $article['abstract']],
+            ['categoryIds', "[]"]
         ];
 
         foreach ($publicationSettings as $setting) {
