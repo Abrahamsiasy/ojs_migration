@@ -139,6 +139,30 @@ if ($result->num_rows > 0) {
             $userSettingsQuery->execute();
         }
 
+        // notification_subscription_settings
+        $notificationSubscriptionSettings = [
+            ['user_id' => $userId, "setting_type" => "int", "context" => 1, 'setting_name' => 'blocked_emailed_notification', 'setting_value' => "8"],
+            ['user_id' => $userId, "setting_type" => "int", "context" => 1, 'setting_name' => 'blocked_emailed_notification', 'setting_value' => "268435477"],
+            ['user_id' => $userId, "setting_type" => "int", "context" => 1, 'setting_name' => 'blocked_emailed_notification', 'setting_value' => "50331659"],
+        ];
+
+        foreach ($notificationSubscriptionSettings as $setting) {
+            $notificationSettingsQuery = $newDb->prepare("
+                INSERT INTO notification_subscription_settings 
+                (user_id, context, setting_type, setting_name, setting_value) 
+                VALUES (?, ?, ?, ?, ?)
+            ");
+            $notificationSettingsQuery->bind_param(
+                "iisss",
+                $userId,
+                $setting['context'],
+                $setting["setting_type"],
+                $setting['setting_name'],
+                $setting['setting_value']
+            );
+            $notificationSettingsQuery->execute();
+        }
+
         // Insert into `user_user_groups` table
         $roleReader = 17; // Reader role
         echo "17 add\n";

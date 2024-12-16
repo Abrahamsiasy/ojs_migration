@@ -489,6 +489,36 @@ try {
                 echo "Error: Missing authorId or publicationId, cannot update publications table.\n";
             }
 
+            // stage assignments
+            $stageAssignmentSettings = [
+                [
+                    'submission_id' => $submissionId,
+                    'user_group_id' => 14,
+                    'user_id' => $author['id'],
+                    'date_assigned' => date('Y-m-d H:i:s'),
+                    'recommend_only' => 0,
+                    'can_change_metadata' => 0,
+                ],
+            ];            
+
+            foreach ($stageAssignmentSettings as $setting) {
+                $stageAssignmentQuery = $newDb->prepare("
+                    INSERT INTO stage_assignments 
+                    (submission_id, user_group_id, user_id, date_assigned, recommend_only, can_change_metadata) 
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ");
+                $stageAssignmentQuery->bind_param(
+                    "iiisii",
+                    $setting['submission_id'],
+                    $setting['user_group_id'],
+                    $setting['user_id'],
+                    $setting['date_assigned'],
+                    $setting['recommend_only'],
+                    $setting['can_change_metadata']
+                );
+                $stageAssignmentQuery->execute();
+            }
+
             // Insert author settings (e.g., name, affiliation, country)
             echo "Inserting author settings for author_id: $authorId\n";
             $authorSettings = [
@@ -753,20 +783,18 @@ try {
                     if ($article['status'] == 3) {
                         foreach ($publicationSettings as $setting) {
                             $stmt = $newDb->prepare("
-                                INSERT INTO publication_settings (publication_id, locale, setting_name, setting_value)
-                                VALUES (?, ?, ?, ?)
+                                INSERT INTO publication_settings (publication_id, setting_name, setting_value)
+                                VALUES (?, ?, ?)
                             ");
 
                             $stmt->bind_param(
-                                "isss",
+                                "iss",
                                 $publication_id,
-                                $locale,
                                 $setting_name,
                                 $setting_value
                             );
 
                             $publication_id = $publicationId;
-                            $locale = 'en';
                             $setting_name = $setting[0];
                             $setting_value = $setting[1];
 
