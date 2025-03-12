@@ -1,7 +1,7 @@
 <?php
 // Database connection details
 $oldDb = new mysqli("localhost", "root", "", "iraqijms_esite");
-$newDb = new mysqli("localhost", "root", "", "ojs");
+$newDb = new mysqli("localhost", "root", "", "ojs_sync");
 
 if ($oldDb->connect_error || $newDb->connect_error) {
     die("Connection failed: " . ($oldDb->connect_error ?? $newDb->connect_error));
@@ -88,7 +88,7 @@ if ($result && $result->num_rows > 0) {
         $userId = ++$lastUserId; // Increment user ID
         $username = strtolower($row['firstname']) . strtolower($row['lastname']) . $userId;
         // $password = "password_hash($row['xxpass'], PASSWORD_BCRYPT)"; // Hash the password
-        $password = '$2y$10$yKZ03fgiwgMs.2eY1A3Jv.nfbC8rQKxbdclOk34fMZR05CqyboYum'; // Correctly assign the hash
+        $password = '$2y$10$NB95Jswlug10FuRc5pFYt.hL5yfFCDKYeY1Hk/IlF3/psDaMfL5yC'; // Correctly assign the hash
 
 
         $email = $row['email'];

@@ -1,7 +1,7 @@
 <?php
 // Database connections
 $oldDb = new mysqli("localhost", "root", "", "iraqijms_esite");
-$newDb = new mysqli("localhost", "root", "", "ojs");
+$newDb = new mysqli("localhost", "root", "", "ojs_sync");
 
 // Check for connection errors
 if ($oldDb->connect_error) {
@@ -18,6 +18,8 @@ try {
     if (!$result) {
         die("Query failed: " . $oldDb->error);
     }
+
+    $assocIdIncrement = 1;
 
     // Loop through each article for migration
     while ($article = $result->fetch_assoc()) {
@@ -93,7 +95,7 @@ try {
             } elseif ($article['status'] == 2) {
                 $stage_id = 4;
                 $status = 1; // Accepted
-            } elseif ($article['status'] == 4 && $article['status'] == 5) {
+            } elseif ($article['status'] == 4 || $article['status'] == 5) {
                 $stage_id = 5;
                 $status = 1; // In Production
             } elseif ($article['status'] == 3) {
@@ -131,8 +133,8 @@ try {
             // Stage: 5
             
             // $status = 3; // Status 3 = Completed
-            $submission_progress = 0;
-            $work_type = 1; // Default type for submissions
+            $submission_progress = $article['status'] == 3 ? "" : 0;
+            $work_type = $article['status'] == 3 ? 0 : 1; // Default type for submissions
 
             $stmt->execute();
             $submissionId = $stmt->insert_id;
@@ -367,6 +369,104 @@ try {
 
         echo "Publication inserted with publication_id: $publicationId\n";
 
+        
+        // keyword related code here
+        $controlledVocabs = [
+            ["symbolic" => "submissionKeyword", "assoc_type" => 1048588, "assoc_id" => $submissionId],
+            ["symbolic" => "submissionSubject", "assoc_type" => 1048588, "assoc_id" => $submissionId],
+            ["symbolic" => "submissionDiscipline", "assoc_type" => 1048588, "assoc_id" => $submissionId],
+            ["symbolic" => "submissionLanguage", "assoc_type" => 1048588, "assoc_id" => $submissionId],
+            ["symbolic" => "submissionAgency", "assoc_type" => 1048588, "assoc_id" => $submissionId],
+        ];
+
+        foreach ($controlledVocabs as $entry) {
+
+            $symbolic = $entry['symbolic'];
+            $assocType = $entry['assoc_type'];
+            $assocID = $entry['assoc_id'];
+
+            $query = $newDb->prepare("
+                INSERT INTO controlled_vocabs 
+                (symbolic, assoc_type, assoc_id) 
+                VALUES (?, ?, ?)
+            ");
+            
+            $query->bind_param("sii", $symbolic, $assocType, $assocID);
+
+            if ($query->execute()) {
+                if($entry['symbolic'] == "submissionKeyword") {
+                    $controlledVocabId = $query->insert_id;
+                    $seq = 1.00;
+
+                    // loop through the keywords, clean and handle any character issues and operate on:
+                    // controlled_vocab_entries & controlled_vocab_entry_settings tables
+                    $articleKeywords = $article['keywords'];
+
+                    // Initialize an array to store the cleaned keywords
+                    $allKeywords = [];
+
+                    // Step 1: Remove common prefixes like "Key words:" or "Keywords:"
+                    $line = preg_replace("/^Key(\\s*words|words)?:\\s*/i", "", $articleKeywords);
+
+                    // Step 2: Split the line into individual keywords using comma or semicolon as delimiters
+                    $keywords = preg_split("/[;,]/", $line);
+
+                    // Step 3: Trim whitespace and clean up special characters
+                    foreach ($keywords as $keyword) {
+                        $keyword = trim($keyword); // Remove leading and trailing whitespace
+                        $keyword = preg_replace("/\s+/", " ", $keyword); // Normalize multiple spaces to one
+
+                        // Skip empty keywords
+                        if (!empty($keyword)) {
+                            $allKeywords[] = $keyword;
+                        }
+                    }
+
+                    $uniqueKeywords = array_values(array_unique($allKeywords));
+
+                    foreach ($uniqueKeywords as $keyword) {
+                        $controlledVocabEntryQuery = $newDb->prepare("
+                            INSERT INTO controlled_vocab_entries 
+                            (controlled_vocab_id, seq) 
+                            VALUES (?, ?)
+                        ");
+                        $controlledVocabEntryQuery->bind_param("id", $controlledVocabId, $seq);
+                        $controlledVocabEntryQuery->execute();
+                        
+                        $controlledVocabEntryId = $controlledVocabEntryQuery->insert_id;
+
+                        $locale = 'en';
+                        $settingName = $entry['symbolic'];
+                        $settingValue = $keyword;
+                        $settingType = 'string';
+
+                        $controlledVocabEntrySettingQuery = $newDb->prepare("
+                            INSERT INTO controlled_vocab_entry_settings 
+                            (controlled_vocab_entry_id, locale, setting_name, setting_value, setting_type) 
+                            VALUES (?, ?, ?, ?, ?)
+                        ");
+                        $controlledVocabEntrySettingQuery->bind_param(
+                            "issss",
+                            $controlledVocabEntryId,
+                            $locale,
+                            $settingName,
+                            $settingValue,
+                            $settingType
+                        );
+                        $controlledVocabEntrySettingQuery->execute();
+
+                        $seq += 1.00;
+
+                        echo "Keyword '$keyword' processed successfully.<br>";
+                    }
+
+                }
+                echo "Record inserted successfully for symbolic: $symbolic<br>";
+            } else {
+                echo "Error inserting record for symbolic: $symbolic - " . $query->error . "<br>";
+            }
+        }
+
         // Insert publication settings (title, abstract, etc.)
         echo "Inserting publication settings for publication_id: $publicationId\n";
         $publicationSettings = [
@@ -429,7 +529,8 @@ try {
                        CONCAT(aa.firstname, ' ', aa.middlename, ' ', aa.lastname) AS author_name,
                        aa.affilate AS author_affiliation,
                        aa.country AS author_country,
-                       aa.email AS author_email
+                       aa.email AS author_email,
+                       aa.id as author_id
                 FROM esite_article_author ea
                 JOIN esite_author aa ON ea.authorid = aa.id
                 WHERE ea.articleid = ?";
@@ -489,34 +590,53 @@ try {
                 echo "Error: Missing authorId or publicationId, cannot update publications table.\n";
             }
 
+            // TODO: this is the place to fix logged in authors not showing submission
             // stage assignments
-            $stageAssignmentSettings = [
-                [
-                    'submission_id' => $submissionId,
-                    'user_group_id' => 14,
-                    'user_id' => $author['id'],
-                    'date_assigned' => date('Y-m-d H:i:s'),
-                    'recommend_only' => 0,
-                    'can_change_metadata' => 0,
-                ],
-            ];            
+            try{
+                $stageAssignmentSettings = [
+                    [
+                        'submission_id' => $submissionId,
+                        'user_group_id' => 14,
+                        'user_id' => $author['author_id'],
+                        'date_assigned' => date('Y-m-d H:i:s'),
+                        'recommend_only' => 0,
+                        'can_change_metadata' => 0,
+                    ],
+                ];   
+                
+                // check if issue is already created and update.
+                $checkStageQuery = "
+                    SELECT submission_id FROM stage_assignments
+                    WHERE submission_id = ? and user_id = ?
+                    LIMIT 1
+                ";
 
-            foreach ($stageAssignmentSettings as $setting) {
-                $stageAssignmentQuery = $newDb->prepare("
-                    INSERT INTO stage_assignments 
-                    (submission_id, user_group_id, user_id, date_assigned, recommend_only, can_change_metadata) 
-                    VALUES (?, ?, ?, ?, ?, ?)
-                ");
-                $stageAssignmentQuery->bind_param(
-                    "iiisii",
-                    $setting['submission_id'],
-                    $setting['user_group_id'],
-                    $setting['user_id'],
-                    $setting['date_assigned'],
-                    $setting['recommend_only'],
-                    $setting['can_change_metadata']
-                );
-                $stageAssignmentQuery->execute();
+                $checkStmt = $newDb->prepare($checkStageQuery);
+                $checkStmt->bind_param("ii", $submissionId, $author['author_id']);
+                $checkStmt->execute();
+                $checkStmt->store_result();
+
+                if ($checkStmt->num_rows == 0) {
+                    foreach ($stageAssignmentSettings as $setting) {
+                    $stageAssignmentQuery = $newDb->prepare("
+                        INSERT INTO stage_assignments 
+                        (submission_id, user_group_id, user_id, date_assigned, recommend_only, can_change_metadata) 
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    ");
+                    $stageAssignmentQuery->bind_param(
+                        "iiisii",
+                        $setting['submission_id'],
+                        $setting['user_group_id'],
+                        $setting['user_id'],
+                        $setting['date_assigned'],
+                        $setting['recommend_only'],
+                        $setting['can_change_metadata']
+                    );
+                    $stageAssignmentQuery->execute();
+                }
+                }
+                
+            } catch(PDOException $e){
             }
 
             // Insert author settings (e.g., name, affiliation, country)
@@ -665,20 +785,18 @@ try {
                     if ($article['status'] == 3) {
                         foreach ($publicationSettings as $setting) {
                             $stmt = $newDb->prepare("
-                                INSERT INTO publication_settings (publication_id, locale, setting_name, setting_value)
-                                VALUES (?, ?, ?, ?)
+                                INSERT INTO publication_settings (publication_id, setting_name, setting_value)
+                                VALUES (?, ?, ?)
                             ");
 
                             $stmt->bind_param(
-                                "isss",
+                                "iss",
                                 $publication_id,
-                                $locale,
                                 $setting_name,
                                 $setting_value
                             );
 
                             $publication_id = $publicationId;
-                            $locale = 'en';
                             $setting_name = $setting[0];
                             $setting_value = $setting[1];
 
@@ -812,6 +930,7 @@ try {
             echo "An error occurred: " . $e;
         }
 
+        $assocIdIncrement+=1;
         // echo "Authors inserted for article ID: " . $article['id'] . "\n";
 
         // $authorStmt->close();
