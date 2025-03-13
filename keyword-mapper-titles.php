@@ -30,7 +30,7 @@ try {
     join publications on publications.publication_id = publication_settings.publication_id 
     join submissions on submissions.submission_id = publications.submission_id 
     where publication_settings.setting_name = 'title' 
-    and publications.status = 3 and submissions.submission_id = 640
+    and publications.status = 3
     group by publication_settings.publication_id");
 
     $totalMatches = 0;
@@ -77,21 +77,21 @@ try {
                 if (!empty($articleKeywords)) {
     
                     // insert record on submission_search_objects
-                    $searchObjectQuery = $newDb->prepare("
-                    INSERT INTO submission_search_objects 
-                    (submission_id, type, assoc_id)
-                    VALUES (?, ?, ?)");
+                    // $searchObjectQuery = $newDb->prepare("
+                    // INSERT INTO submission_search_objects 
+                    // (submission_id, type, assoc_id)
+                    // VALUES (?, ?, ?)");
     
-                    $searchObjType = 17;
-                    $searchObjAssocID = null;
+                    // $searchObjType = 17;
+                    // $searchObjAssocID = null;
     
-                    $searchObjectQuery->bind_param("iii", $submissionId, $searchObjType, $searchObjAssocID);
+                    // $searchObjectQuery->bind_param("iii", $submissionId, $searchObjType, $searchObjAssocID);
     
-                    if ($searchObjectQuery->execute()) {
-                        echo "Record inserted successfully for submission_search_objects.\n";
-                    } else {
-                        echo "Error inserting record for submission_search_objects - " . $searchObjectQuery->error . "\n";
-                    }
+                    // if ($searchObjectQuery->execute()) {
+                    //     echo "Record inserted successfully for submission_search_objects.\n";
+                    // } else {
+                    //     echo "Error inserting record for submission_search_objects - " . $searchObjectQuery->error . "\n";
+                    // }
     
                     // insert or update keywords here
                     $controlledVocabs = [
@@ -182,34 +182,34 @@ try {
     
 
                                     // insert submission_search_keyword_list
-                                    $searchKeywordQuery = $newDb->prepare("
-                                    INSERT INTO submission_search_keyword_list 
-                                    (keyword_text)
-                                    VALUES (?)");
+                                    // $searchKeywordQuery = $newDb->prepare("
+                                    // INSERT INTO submission_search_keyword_list 
+                                    // (keyword_text)
+                                    // VALUES (?)");
                                     
-                                    $searchKeywordQuery->bind_param("s", $keyword);
+                                    // $searchKeywordQuery->bind_param("s", $keyword);
     
-                                    if ($searchObjectQuery->insert_id) {
+                                    // if ($searchObjectQuery->insert_id) {
                                         
-                                        $searchKeywordQuery->execute();
+                                    //     $searchKeywordQuery->execute();
     
-                                        // insert submission_search_object_keywords
-                                        $searchObjectKeywordQuery = $newDb->prepare("
-                                        INSERT INTO submission_search_object_keywords 
-                                        (object_id, keyword_id, pos)
-                                        VALUES (?, ?, ?)");
+                                    //     // insert submission_search_object_keywords
+                                    //     $searchObjectKeywordQuery = $newDb->prepare("
+                                    //     INSERT INTO submission_search_object_keywords 
+                                    //     (object_id, keyword_id, pos)
+                                    //     VALUES (?, ?, ?)");
                         
-                                        $objectId = $searchObjectQuery->insert_id;
-                                        $keywordId = $searchKeywordQuery->insert_id;
+                                    //     $objectId = $searchObjectQuery->insert_id;
+                                    //     $keywordId = $searchKeywordQuery->insert_id;
                         
-                                        $searchObjectKeywordQuery->bind_param("iii", $objectId, $keywordId, $pos);
-                                        $searchObjectKeywordQuery->execute();
+                                    //     $searchObjectKeywordQuery->bind_param("iii", $objectId, $keywordId, $pos);
+                                    //     $searchObjectKeywordQuery->execute();
     
-                                        $pos += 1;
+                                    //     $pos += 1;
     
-                                    } else {
-                                        echo "Error inserting record for search keyword - " . $searchObjectKeywordQuery->error . "\n";
-                                    }
+                                    // } else {
+                                    //     echo "Error inserting record for search keyword - " . $searchObjectKeywordQuery->error . "\n";
+                                    // }
                                 }
                             }
                             echo "Record inserted successfully for symbolic: $symbolic\n";
