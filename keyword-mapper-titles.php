@@ -108,114 +108,131 @@ try {
                         $assocType = $entry['assoc_type'];
                         $assocID = $entry['assoc_id'];
     
-                        $query = $newDb->prepare("
-                            INSERT INTO controlled_vocabs 
-                            (symbolic, assoc_type, assoc_id) 
-                            VALUES (?, ?, ?)
-                        ");
+                        // check if issue is already created and update.
+                        $checkControlledVocabQuery = "
+                            SELECT assoc_id FROM controlled_vocabs
+                            WHERE assoc_id = ?
+                            LIMIT 1
+                        ";
+
+                        $checkStmt = $newDb->prepare($checkControlledVocabQuery);
+                        $checkStmt->bind_param("i", $assocID);
+                        $checkStmt->execute();
+                        $checkStmt->store_result();
+
+                        if ($checkStmt->num_rows > 0) {
+                            echo "Skipping for symbolic.\n";
+                        } else {
+                            $query = $newDb->prepare("
+                                INSERT INTO controlled_vocabs 
+                                (symbolic, assoc_type, assoc_id) 
+                                VALUES (?, ?, ?)
+                            ");
+        
+                            $query->bind_param("sii", $symbolic, $assocType, $assocID);
+        
+                            if ($query->execute()) {
+                                if ($entry['symbolic'] == "submissionKeyword") {
+                                    $controlledVocabId = $query->insert_id;
+                                    $seq = 1.00;
+        
+                                    // Initialize an array to store the cleaned keywords
+                                    $allKeywords = [];
+        
+                                    // Step 1: Remove common prefixes like "Key words:" or "Keywords:"
+                                    $line = preg_replace("/^Key(\\s*words|words)?:\\s*/i", "", $articleKeywords);
+        
+                                    // Step 2: Split the line into individual keywords using comma or semicolon as delimiters
+                                    $keywords = preg_split("/[;,]/", $line);
+        
+                                    // Step 3: Trim whitespace and clean up special characters
+                                    foreach ($keywords as $keyword) {
+                                        $keyword = trim($keyword); // Remove leading and trailing whitespace
+                                        $keyword = preg_replace("/\s+/", " ", $keyword); // Normalize multiple spaces to one
+        
+                                        // Skip empty keywords
+                                        if (!empty($keyword)) {
+                                            $allKeywords[] = $keyword;
+                                        }
+                                    }
+        
+                                    $uniqueKeywords = array_values(array_unique($allKeywords));
+        
+                                    foreach ($uniqueKeywords as $keyword) {
+                                        $pos = 0;
+        
+                                        $controlledVocabEntryQuery = $newDb->prepare("
+                                            INSERT INTO controlled_vocab_entries 
+                                            (controlled_vocab_id, seq) 
+                                            VALUES (?, ?)
+                                        ");
+                                        $controlledVocabEntryQuery->bind_param("id", $controlledVocabId, $seq);
+                                        $controlledVocabEntryQuery->execute();
+        
+                                        $controlledVocabEntryId = $controlledVocabEntryQuery->insert_id;
+        
+                                        $locale = 'en';
+                                        $settingName = $entry['symbolic'];
+                                        $settingValue = $keyword;
+                                        $settingType = 'string';
+        
+                                        $controlledVocabEntrySettingQuery = $newDb->prepare("
+                                            INSERT INTO controlled_vocab_entry_settings 
+                                            (controlled_vocab_entry_id, locale, setting_name, setting_value, setting_type) 
+                                            VALUES (?, ?, ?, ?, ?)
+                                        ");
+                                        $controlledVocabEntrySettingQuery->bind_param(
+                                            "issss",
+                                            $controlledVocabEntryId,
+                                            $locale,
+                                            $settingName,
+                                            $settingValue,
+                                            $settingType
+                                        );
+                                        $controlledVocabEntrySettingQuery->execute();
+        
+                                        $seq += 1.00;
+        
+                                        echo "Keyword '$keyword' processed successfully.\n";
+        
     
-                        $query->bind_param("sii", $symbolic, $assocType, $assocID);
-    
-                        if ($query->execute()) {
-                            if ($entry['symbolic'] == "submissionKeyword") {
-                                $controlledVocabId = $query->insert_id;
-                                $seq = 1.00;
-    
-                                // Initialize an array to store the cleaned keywords
-                                $allKeywords = [];
-    
-                                // Step 1: Remove common prefixes like "Key words:" or "Keywords:"
-                                $line = preg_replace("/^Key(\\s*words|words)?:\\s*/i", "", $articleKeywords);
-    
-                                // Step 2: Split the line into individual keywords using comma or semicolon as delimiters
-                                $keywords = preg_split("/[;,]/", $line);
-    
-                                // Step 3: Trim whitespace and clean up special characters
-                                foreach ($keywords as $keyword) {
-                                    $keyword = trim($keyword); // Remove leading and trailing whitespace
-                                    $keyword = preg_replace("/\s+/", " ", $keyword); // Normalize multiple spaces to one
-    
-                                    // Skip empty keywords
-                                    if (!empty($keyword)) {
-                                        $allKeywords[] = $keyword;
+                                        // insert submission_search_keyword_list
+                                        // $searchKeywordQuery = $newDb->prepare("
+                                        // INSERT INTO submission_search_keyword_list 
+                                        // (keyword_text)
+                                        // VALUES (?)");
+                                        
+                                        // $searchKeywordQuery->bind_param("s", $keyword);
+        
+                                        // if ($searchObjectQuery->insert_id) {
+                                            
+                                        //     $searchKeywordQuery->execute();
+        
+                                        //     // insert submission_search_object_keywords
+                                        //     $searchObjectKeywordQuery = $newDb->prepare("
+                                        //     INSERT INTO submission_search_object_keywords 
+                                        //     (object_id, keyword_id, pos)
+                                        //     VALUES (?, ?, ?)");
+                            
+                                        //     $objectId = $searchObjectQuery->insert_id;
+                                        //     $keywordId = $searchKeywordQuery->insert_id;
+                            
+                                        //     $searchObjectKeywordQuery->bind_param("iii", $objectId, $keywordId, $pos);
+                                        //     $searchObjectKeywordQuery->execute();
+        
+                                        //     $pos += 1;
+        
+                                        // } else {
+                                        //     echo "Error inserting record for search keyword - " . $searchObjectKeywordQuery->error . "\n";
+                                        // }
                                     }
                                 }
-    
-                                $uniqueKeywords = array_values(array_unique($allKeywords));
-    
-                                foreach ($uniqueKeywords as $keyword) {
-                                    $pos = 0;
-    
-                                    $controlledVocabEntryQuery = $newDb->prepare("
-                                        INSERT INTO controlled_vocab_entries 
-                                        (controlled_vocab_id, seq) 
-                                        VALUES (?, ?)
-                                    ");
-                                    $controlledVocabEntryQuery->bind_param("id", $controlledVocabId, $seq);
-                                    $controlledVocabEntryQuery->execute();
-    
-                                    $controlledVocabEntryId = $controlledVocabEntryQuery->insert_id;
-    
-                                    $locale = 'en';
-                                    $settingName = $entry['symbolic'];
-                                    $settingValue = $keyword;
-                                    $settingType = 'string';
-    
-                                    $controlledVocabEntrySettingQuery = $newDb->prepare("
-                                        INSERT INTO controlled_vocab_entry_settings 
-                                        (controlled_vocab_entry_id, locale, setting_name, setting_value, setting_type) 
-                                        VALUES (?, ?, ?, ?, ?)
-                                    ");
-                                    $controlledVocabEntrySettingQuery->bind_param(
-                                        "issss",
-                                        $controlledVocabEntryId,
-                                        $locale,
-                                        $settingName,
-                                        $settingValue,
-                                        $settingType
-                                    );
-                                    $controlledVocabEntrySettingQuery->execute();
-    
-                                    $seq += 1.00;
-    
-                                    echo "Keyword '$keyword' processed successfully.\n";
-    
-
-                                    // insert submission_search_keyword_list
-                                    // $searchKeywordQuery = $newDb->prepare("
-                                    // INSERT INTO submission_search_keyword_list 
-                                    // (keyword_text)
-                                    // VALUES (?)");
-                                    
-                                    // $searchKeywordQuery->bind_param("s", $keyword);
-    
-                                    // if ($searchObjectQuery->insert_id) {
-                                        
-                                    //     $searchKeywordQuery->execute();
-    
-                                    //     // insert submission_search_object_keywords
-                                    //     $searchObjectKeywordQuery = $newDb->prepare("
-                                    //     INSERT INTO submission_search_object_keywords 
-                                    //     (object_id, keyword_id, pos)
-                                    //     VALUES (?, ?, ?)");
-                        
-                                    //     $objectId = $searchObjectQuery->insert_id;
-                                    //     $keywordId = $searchKeywordQuery->insert_id;
-                        
-                                    //     $searchObjectKeywordQuery->bind_param("iii", $objectId, $keywordId, $pos);
-                                    //     $searchObjectKeywordQuery->execute();
-    
-                                    //     $pos += 1;
-    
-                                    // } else {
-                                    //     echo "Error inserting record for search keyword - " . $searchObjectKeywordQuery->error . "\n";
-                                    // }
-                                }
+                                echo "Record inserted successfully for symbolic: $symbolic\n";
+                            } else {
+                                echo "Error inserting record for symbolic: $symbolic - " . $query->error . "\n";
                             }
-                            echo "Record inserted successfully for symbolic: $symbolic\n";
-                        } else {
-                            echo "Error inserting record for symbolic: $symbolic - " . $query->error . "\n";
                         }
+
                     }
                 } else {
                     // echo "No keywords found for matched article.\n";
