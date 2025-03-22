@@ -234,6 +234,12 @@ echo "</body></html>";
 // TRUNCATE TABLE publications;
 // TRUNCATE TABLE publication_galleys;
 
+// TRUNCATE TABLE notification_subscription_settings;
+// TRUNCATE TABLE stage_assignments;
+// TRUNCATE TABLE controlled_vocabs;
+// TRUNCATE TABLE controlled_vocab_entries;
+// TRUNCATE TABLE controlled_vocab_entry_settings;
+
 // TRUNCATE TABLE submission_file_settings;
 // TRUNCATE TABLE submission_files;
 // TRUNCATE TABLE submissions;
