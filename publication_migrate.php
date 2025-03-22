@@ -1,7 +1,7 @@
 <?php
 // Database connections
 $oldDb = new mysqli("localhost", "root", "", "iraqijms_esite");
-$newDb = new mysqli("localhost", "root", "", "ojs_sync");
+$newDb = new mysqli("localhost", "root", "", "ojs_fresh");
 
 // Check for connection errors
 if ($oldDb->connect_error) {
@@ -524,152 +524,152 @@ try {
         // 2. Insert authors (now after publication insertion)
         echo "Inserting authors for article ID: " . $article['id'] . "\n";
 
-        $articleIDD = $article['id'];
-        $authorQuery = "SELECT ea.*,
-                       CONCAT(aa.firstname, ' ', aa.middlename, ' ', aa.lastname) AS author_name,
-                       aa.affilate AS author_affiliation,
-                       aa.country AS author_country,
-                       aa.email AS author_email,
-                       aa.id as author_id
-                FROM esite_article_author ea
-                JOIN esite_author aa ON ea.authorid = aa.id
-                WHERE ea.articleid = ?";
+        // $articleIDD = $article['id'];
+        // $authorQuery = "SELECT ea.*,
+        //                CONCAT(aa.firstname, ' ', aa.middlename, ' ', aa.lastname) AS author_name,
+        //                aa.affilate AS author_affiliation,
+        //                aa.country AS author_country,
+        //                aa.email AS author_email,
+        //                aa.id as author_id
+        //         FROM esite_article_author ea
+        //         JOIN esite_author aa ON ea.authorid = aa.id
+        //         WHERE ea.articleid = ?";
 
-        // echo ($authorQuery);
+        // // echo ($authorQuery);
 
-        $authorStmt = $oldDb->prepare($authorQuery);
-        $authorStmt->bind_param("i", $article['id']);
-        $authorStmt->execute();
-        $authorResult = $authorStmt->get_result();
+        // $authorStmt = $oldDb->prepare($authorQuery);
+        // $authorStmt->bind_param("i", $article['id']);
+        // $authorStmt->execute();
+        // $authorResult = $authorStmt->get_result();
 
-        echo "ARTICLEID: " . $article['id'] . "\n";
+        // echo "ARTICLEID: " . $article['id'] . "\n";
 
-        while ($author = $authorResult->fetch_assoc()) {
-            // Insert into authors table
+        // while ($author = $authorResult->fetch_assoc()) {
+        //     // Insert into authors table
 
-            echo "_________________________________________________________________________" . $author["id"] . "\n\n\n";
-            echo "Inserting author: " . $author['author_name'] . "\n";
+        //     echo "_________________________________________________________________________" . $author["id"] . "\n\n\n";
+        //     echo "Inserting author: " . $author['author_name'] . "\n";
 
-            $stmt = $newDb->prepare("
-                INSERT INTO authors (email, include_in_browse, publication_id, seq, user_group_id)
-                VALUES (?, ?, ?, ?, ?)
-            ");
+        //     $stmt = $newDb->prepare("
+        //         INSERT INTO authors (email, include_in_browse, publication_id, seq, user_group_id)
+        //         VALUES (?, ?, ?, ?, ?)
+        //     ");
 
-            $stmt->bind_param(
-                "siisi",
-                $email,
-                $include_in_browse,
-                $publication_id,
-                $seq,
-                $user_group_id
-            );
+        //     $stmt->bind_param(
+        //         "siisi",
+        //         $email,
+        //         $include_in_browse,
+        //         $publication_id,
+        //         $seq,
+        //         $user_group_id
+        //     );
 
-            $email = $author['author_email'];
-            $include_in_browse = 1;
-            $publication_id = $publicationId;
-            $seq = $author['vorder'];
-            $user_group_id = 14; // Default group ID for authors
+        //     $email = $author['author_email'];
+        //     $include_in_browse = 1;
+        //     $publication_id = $publicationId;
+        //     $seq = $author['vorder'];
+        //     $user_group_id = 14; // Default group ID for authors
 
-            $stmt->execute();
-            $authorId = $stmt->insert_id;
-            $stmt->close();
+        //     $stmt->execute();
+        //     $authorId = $stmt->insert_id;
+        //     $stmt->close();
 
-            // Update the primary_contact_id in the publications table
-            if ($authorId && $publication_id) {
-                $updateStmt = $newDb->prepare("UPDATE publications SET primary_contact_id = ? WHERE publication_id = ?");
-                $updateStmt->bind_param("ii", $authorId, $publication_id);
+        //     // Update the primary_contact_id in the publications table
+        //     if ($authorId && $publication_id) {
+        //         $updateStmt = $newDb->prepare("UPDATE publications SET primary_contact_id = ? WHERE publication_id = ?");
+        //         $updateStmt->bind_param("ii", $authorId, $publication_id);
 
-                if ($updateStmt->execute()) {
-                    echo "Successfully updated publication with ID $publication_id to have primary_contact_id $authorId.\n";
-                } else {
-                    echo "Failed to update primary_contact_id: " . $updateStmt->error . "\n";
-                }
+        //         if ($updateStmt->execute()) {
+        //             echo "Successfully updated publication with ID $publication_id to have primary_contact_id $authorId.\n";
+        //         } else {
+        //             echo "Failed to update primary_contact_id: " . $updateStmt->error . "\n";
+        //         }
 
-                $updateStmt->close();
-            } else {
-                echo "Error: Missing authorId or publicationId, cannot update publications table.\n";
-            }
+        //         $updateStmt->close();
+        //     } else {
+        //         echo "Error: Missing authorId or publicationId, cannot update publications table.\n";
+        //     }
 
-            // TODO: this is the place to fix logged in authors not showing submission
-            // stage assignments
-            try{
-                $stageAssignmentSettings = [
-                    [
-                        'submission_id' => $submissionId,
-                        'user_group_id' => 14,
-                        'user_id' => $author['author_id'],
-                        'date_assigned' => date('Y-m-d H:i:s'),
-                        'recommend_only' => 0,
-                        'can_change_metadata' => 0,
-                    ],
-                ];   
+        //     // TODO: this is the place to fix logged in authors not showing submission
+        //     // stage assignments
+        //     try{
+        //         $stageAssignmentSettings = [
+        //             [
+        //                 'submission_id' => $submissionId,
+        //                 'user_group_id' => 14,
+        //                 'user_id' => $author['author_id'],
+        //                 'date_assigned' => date('Y-m-d H:i:s'),
+        //                 'recommend_only' => 0,
+        //                 'can_change_metadata' => 0,
+        //             ],
+        //         ];   
                 
-                // check if issue is already created and update.
-                $checkStageQuery = "
-                    SELECT submission_id FROM stage_assignments
-                    WHERE submission_id = ? and user_id = ?
-                    LIMIT 1
-                ";
+        //         // check if issue is already created and update.
+        //         $checkStageQuery = "
+        //             SELECT submission_id FROM stage_assignments
+        //             WHERE submission_id = ? and user_id = ?
+        //             LIMIT 1
+        //         ";
 
-                $checkStmt = $newDb->prepare($checkStageQuery);
-                $checkStmt->bind_param("ii", $submissionId, $author['author_id']);
-                $checkStmt->execute();
-                $checkStmt->store_result();
+        //         $checkStmt = $newDb->prepare($checkStageQuery);
+        //         $checkStmt->bind_param("ii", $submissionId, $author['author_id']);
+        //         $checkStmt->execute();
+        //         $checkStmt->store_result();
 
-                if ($checkStmt->num_rows == 0) {
-                    foreach ($stageAssignmentSettings as $setting) {
-                    $stageAssignmentQuery = $newDb->prepare("
-                        INSERT INTO stage_assignments 
-                        (submission_id, user_group_id, user_id, date_assigned, recommend_only, can_change_metadata) 
-                        VALUES (?, ?, ?, ?, ?, ?)
-                    ");
-                    $stageAssignmentQuery->bind_param(
-                        "iiisii",
-                        $setting['submission_id'],
-                        $setting['user_group_id'],
-                        $setting['user_id'],
-                        $setting['date_assigned'],
-                        $setting['recommend_only'],
-                        $setting['can_change_metadata']
-                    );
-                    $stageAssignmentQuery->execute();
-                }
-                }
+        //         if ($checkStmt->num_rows == 0) {
+        //             foreach ($stageAssignmentSettings as $setting) {
+        //             $stageAssignmentQuery = $newDb->prepare("
+        //                 INSERT INTO stage_assignments 
+        //                 (submission_id, user_group_id, user_id, date_assigned, recommend_only, can_change_metadata) 
+        //                 VALUES (?, ?, ?, ?, ?, ?)
+        //             ");
+        //             $stageAssignmentQuery->bind_param(
+        //                 "iiisii",
+        //                 $setting['submission_id'],
+        //                 $setting['user_group_id'],
+        //                 $setting['user_id'],
+        //                 $setting['date_assigned'],
+        //                 $setting['recommend_only'],
+        //                 $setting['can_change_metadata']
+        //             );
+        //             $stageAssignmentQuery->execute();
+        //         }
+        //         }
                 
-            } catch(PDOException $e){
-            }
+        //     } catch(PDOException $e){
+        //     }
 
-            // Insert author settings (e.g., name, affiliation, country)
-            echo "Inserting author settings for author_id: $authorId\n";
-            $authorSettings = [
-                ['givenName', $author['author_name']],
-                ['affiliation', $author['author_affiliation']],
-                ['country', $author['author_country']],
-            ];
+        //     // Insert author settings (e.g., name, affiliation, country)
+        //     echo "Inserting author settings for author_id: $authorId\n";
+        //     $authorSettings = [
+        //         ['givenName', $author['author_name']],
+        //         ['affiliation', $author['author_affiliation']],
+        //         ['country', $author['author_country']],
+        //     ];
 
-            foreach ($authorSettings as $setting) {
-                $stmt = $newDb->prepare("
-                    INSERT INTO author_settings (author_id, locale, setting_name, setting_value)
-                    VALUES (?, ?, ?, ?)
-                ");
+        //     foreach ($authorSettings as $setting) {
+        //         $stmt = $newDb->prepare("
+        //             INSERT INTO author_settings (author_id, locale, setting_name, setting_value)
+        //             VALUES (?, ?, ?, ?)
+        //         ");
 
-                $stmt->bind_param(
-                    "isss",
-                    $author_id,
-                    $locale,
-                    $setting_name,
-                    $setting_value
-                );
+        //         $stmt->bind_param(
+        //             "isss",
+        //             $author_id,
+        //             $locale,
+        //             $setting_name,
+        //             $setting_value
+        //         );
 
-                $author_id = $authorId;
-                $locale = 'en';
-                $setting_name = $setting[0];
-                $setting_value = $setting[1];
+        //         $author_id = $authorId;
+        //         $locale = 'en';
+        //         $setting_name = $setting[0];
+        //         $setting_value = $setting[1];
 
-                $stmt->execute();
-                $stmt->close();
-            }
-        }
+        //         $stmt->execute();
+        //         $stmt->close();
+        //     }
+        // }
 
         // // ISSUE RELATED CODE HERE
         try {

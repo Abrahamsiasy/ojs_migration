@@ -1,7 +1,7 @@
 <?php
 // Database connection settings
 $oldDb = new mysqli("localhost", "root", "", "iraqijms_esite");
-$newDb = new mysqli("localhost", "root", "", "ojs2");
+$newDb = new mysqli("localhost", "root", "", "ojs_fresh");
 
 // Check connections
 if ($oldDb->connect_error) {

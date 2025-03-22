@@ -29,7 +29,7 @@ try {
     SELECT submissions.submission_id as submission_id, publication_settings.setting_value, publications.publication_id FROM publication_settings 
     join publications on publications.publication_id = publication_settings.publication_id 
     join submissions on submissions.submission_id = publications.submission_id 
-    where publication_settings.setting_name = 'title' 
+    where publication_settings.setting_name = 'abstract' 
     and publications.status = 3
     group by publication_settings.publication_id");
 
@@ -158,6 +158,8 @@ try {
         
                                     $uniqueKeywords = array_values(array_unique($allKeywords));
         
+
+                                    // real keywords insertion here
                                     foreach ($uniqueKeywords as $keyword) {
                                         $pos = 0;
         
